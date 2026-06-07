@@ -8,10 +8,17 @@ def open_device():
     if dev is None:
         raise Exception("Calculator not found")
 
-    if dev.is_kernel_driver_active(0):
-        dev.detach_kernel_driver(0)
+    cfg = dev.get_active_configuration()
 
-    dev.set_configuration()
+    for i in range(cfg.bNumInterfaces):
+        try:
+            if dev.is_kernel_driver_active(i):
+                dev.detach_kernel_driver(i)
+                print(f"Detached kernel driver from interface {i}")
+        except Exception:
+            pass
+
+    dev.set_configuration(cfg.bConfigurationValue)
     return dev
 
 # constants
@@ -159,9 +166,23 @@ def handle_addr_request(dev, msg):
 
 
 dev = open_device()
-dev.reset()
-time.sleep(1)
-dev = open_device()
+
+try:
+    dev.reset()
+except Exception:
+    pass
+
+time.sleep(2)
+
+# re-find device AFTER reset
+for _ in range(10):
+    dev = usb.core.find(idVendor=0x0451, idProduct=0xE022)
+    if dev:
+        break
+    time.sleep(0.5)
+
+if dev is None:
+    raise Exception("Device did not re-enumerate")
 
 print("Waiting for packets...")
 
