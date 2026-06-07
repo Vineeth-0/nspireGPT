@@ -8,66 +8,51 @@
 static nn_ch_t ch;
 static int connected = 0;
 
-static void init_stream()
+static void navnet_init()
 {
-    nn_oh_t oh;
+    nn_oh_t oh = TI_NN_CreateOperationHandle();
     nn_nh_t node;
-    int16_t rc;
 
-    oh = TI_NN_CreateOperationHandle();
-
-    rc = TI_NN_NodeEnumInit(oh);
-    if (rc < 0) return;
-
-    rc = TI_NN_NodeEnumNext(oh, &node);
-    if (rc < 0) {
-        TI_NN_NodeEnumDone(oh);
-        TI_NN_DestroyOperationHandle(oh);
-        return;
-    }
+    if (TI_NN_NodeEnumInit(oh) < 0) return;
+    if (TI_NN_NodeEnumNext(oh, &node) < 0) return;
 
     TI_NN_NodeEnumDone(oh);
 
-    rc = TI_NN_Connect(node, SERVICE_STREAM, &ch);
-    if (rc < 0) {
-        TI_NN_DestroyOperationHandle(oh);
-        return;
+    if (TI_NN_Connect(node, SERVICE_STREAM, &ch) >= 0) {
+        connected = 1;
     }
 
-    connected = 1;
     TI_NN_DestroyOperationHandle(oh);
 }
 
-static void send_message(const char *msg)
+static void send_msg(const char *msg)
 {
     if (!connected)
-        init_stream();
+        navnet_init();
 
     if (!connected)
         return;
 
-    char buffer[128];
-
-    // SIMPLE STREAM FORMAT (IMPORTANT)
-    snprintf(buffer, sizeof(buffer), "%s\n", msg);
-
-    TI_NN_Write(ch, buffer, strlen(buffer));
+    TI_NN_Write(ch, (void *)msg, strlen(msg));
 }
 
 int main(void)
 {
-    printf("Starting stream sender...\n");
+    assert_ndless_rev(893);
 
-    init_stream();
+    printf("NavNet stream running...\n");
+
+    navnet_init();
 
     int i = 0;
+    char buf[64];
+
     while (1)
     {
-        char msg[64];
-        snprintf(msg, sizeof(msg), "HELLO %d", i++);
-        send_message(msg);
+        sprintf(buf, "MSG_%d", i++);
+        send_msg(buf);
 
-        msleep(500);
+        sleep(1);  // IMPORTANT: prevents CX II crashes
     }
 
     return 0;

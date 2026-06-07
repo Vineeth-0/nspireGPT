@@ -1,9 +1,10 @@
 import usb.core
-import usb.util
+import time
 
 VENDOR = 0x0451
 PRODUCT = 0xE022
-EP_IN = 0x81
+
+SERVICE_STREAM = 0x04
 
 
 def open_device():
@@ -12,38 +13,45 @@ def open_device():
         raise Exception("Calculator not found")
 
     dev.set_configuration()
-
-    try:
-        usb.util.claim_interface(dev, 0)
-    except:
-        pass
-
     return dev
+
+
+def read_raw(dev):
+    try:
+        return bytes(dev.read(0x81, 512, timeout=2000))
+    except:
+        return None
+
+
+def extract_payload(raw):
+    if not raw or len(raw) < 12:
+        return None
+
+    service = raw[1]
+    payload = raw[12:]
+
+    return service, payload
 
 
 def main():
     dev = open_device()
 
-    print("Listening for stream...")
+    buffer = b""
 
-    buffer = ""
+    print("Listening...")
 
     while True:
-        try:
-            data = dev.read(EP_IN, 2048, timeout=5000)
-            text = bytes(data).decode(errors="ignore")
+        raw = read_raw(dev)
+        msg = extract_payload(raw)
 
-            buffer += text
-
-            while "\n" in buffer:
-                line, buffer = buffer.split("\n", 1)
-                line = line.strip()
-
-                if line:
-                    print("STREAM:", line)
-
-        except Exception:
+        if not msg:
             continue
+
+        service, payload = msg
+
+        if service == SERVICE_STREAM:
+            text = payload.decode(errors="ignore")
+            print("STREAM:", text)
 
 
 if __name__ == "__main__":
