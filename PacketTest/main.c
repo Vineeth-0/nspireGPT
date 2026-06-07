@@ -52,7 +52,7 @@ int main(void)
         sprintf(buf, "MSG_%d", i++);
         send_msg(buf);
 
-        sleep(1);  // IMPORTANT: prevents CX II crashes
+        msleep(1000);  // IMPORTANT: prevents CX II crashes
     }
 
     return 0;
