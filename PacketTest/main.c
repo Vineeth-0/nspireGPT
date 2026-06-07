@@ -5,11 +5,13 @@
 
 #define SERVICE_STREAM 0x04
 
-static void send_message(const char *msg)
+static nn_ch_t ch;
+static int connected = 0;
+
+static void init_stream()
 {
     nn_oh_t oh;
     nn_nh_t node;
-    nn_ch_t ch;
     int16_t rc;
 
     oh = TI_NN_CreateOperationHandle();
@@ -32,21 +34,41 @@ static void send_message(const char *msg)
         return;
     }
 
-    TI_NN_Write(ch, (void *)msg, strlen(msg));
-
-    TI_NN_Disconnect(ch);
+    connected = 1;
     TI_NN_DestroyOperationHandle(oh);
+}
+
+static void send_message(const char *msg)
+{
+    if (!connected)
+        init_stream();
+
+    if (!connected)
+        return;
+
+    char buffer[128];
+
+    // SIMPLE STREAM FORMAT (IMPORTANT)
+    snprintf(buffer, sizeof(buffer), "%s\n", msg);
+
+    TI_NN_Write(ch, buffer, strlen(buffer));
 }
 
 int main(void)
 {
-    assert_ndless_rev(893);
+    printf("Starting stream sender...\n");
 
-    printf("Sending...\n");
+    init_stream();
 
-    send_message("HELLO_FROM_NSPIRE");
+    int i = 0;
+    while (1)
+    {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "HELLO %d", i++);
+        send_message(msg);
 
-    printf("Done\n");
-    wait_key_pressed();
+        msleep(500);
+    }
+
     return 0;
 }
