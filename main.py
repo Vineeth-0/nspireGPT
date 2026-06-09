@@ -219,9 +219,12 @@ class TINspireDevice:
 def find_device() -> Optional[TINspireDevice]:
     """Find connected TI-Nspire calculator"""
     all_devices = list(usb.core.find(find_all=True))
-    dev = usb.core.find(find_all=False, idVendor=VID, idProduct=[PID, PID_CX2])
-    
-    if dev is None:
+    ti_devices = [
+        d for d in all_devices
+        if d.idVendor == VID and d.idProduct in (PID, PID_CX2)
+    ]
+
+    if not ti_devices:
         print("No TI-Nspire calculator found")
         if all_devices:
             print("Connected USB devices:")
@@ -229,10 +232,22 @@ def find_device() -> Optional[TINspireDevice]:
                 print(f"  {hex(d.idVendor)}:{hex(d.idProduct)} on bus {getattr(d, 'bus', '?')} addr {getattr(d, 'address', '?')}")
         return None
 
+    dev = ti_devices[0]
+    print(f"Found TI-Nspire candidate: {hex(dev.idVendor)}:{hex(dev.idProduct)} on bus {getattr(dev, 'bus', '?')} addr {getattr(dev, 'address', '?')}")
+
     try:
+        if dev.is_kernel_driver_active(0):
+            try:
+                dev.detach_kernel_driver(0)
+            except usb.core.USBError as e:
+                print(f"Unable to detach kernel driver: {e}")
+                return None
         return TINspireDevice(dev)
-    except Exception as e:
+    except usb.core.USBError as e:
         print(f"Error connecting to device: {e}")
+        return None
+    except Exception as e:
+        print(f"Error initializing TI-Nspire device: {e}")
         return None
 
 
