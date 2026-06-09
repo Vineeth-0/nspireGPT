@@ -21,7 +21,7 @@ PID_CX2 = 0xe022  # CX-II
 
 # USB Endpoints
 EP_OUT = 0x01
-EP_IN = 0x82
+EP_IN = 0x81
 
 TIMEOUT = 5000
 
@@ -43,23 +43,40 @@ class TINspireDevice:
         self.device = device
         self.device.set_configuration()
 
-        # Claim interface
+        cfg = self.device.get_active_configuration()
+        interface = cfg[(0, 0)]
+
+        # Find the bulk endpoints from the active interface
+        self.ep_out = usb.util.find_descriptor(
+            interface,
+            custom_match=lambda e: usb.util.endpoint_direction(e.bEndpointAddress) == usb.util.ENDPOINT_OUT
+            and usb.util.endpoint_type(e.bmAttributes) == usb.util.ENDPOINT_TYPE_BULK
+        )
+        self.ep_in = usb.util.find_descriptor(
+            interface,
+            custom_match=lambda e: usb.util.endpoint_direction(e.bEndpointAddress) == usb.util.ENDPOINT_IN
+            and usb.util.endpoint_type(e.bmAttributes) == usb.util.ENDPOINT_TYPE_BULK
+        )
+
+        if self.ep_out is None or self.ep_in is None:
+            raise ValueError("Could not find TI-Nspire bulk endpoints")
+
         usb.util.claim_interface(self.device, 0)
 
     def __del__(self):
         """Clean up USB device"""
         try:
             usb.util.release_interface(self.device, 0)
-        except:
+        except Exception:
             pass
 
     def _send_data(self, data: bytes) -> None:
         """Send data to calculator"""
-        self.device.write(EP_OUT, data, TIMEOUT)
+        self.device.write(self.ep_out.bEndpointAddress, data, TIMEOUT)
 
     def _receive_data(self, size: int = 4096) -> bytes:
         """Receive data from calculator"""
-        return bytes(self.device.read(EP_IN, size, TIMEOUT))
+        return bytes(self.device.read(self.ep_in.bEndpointAddress, size, TIMEOUT))
 
     def _send_command(self, cmd: str, *args) -> bytes:
         """Send command and get response"""
